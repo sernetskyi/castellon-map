@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Шо Хочеш..❓Кастейон</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
+        #map { height: 100%; width: 100%; z-index: 1; }
+        .bottom-sheet {
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.1, 0.76, 0.55, 0.94);
+            z-index: 999;
+        }
+        .bottom-sheet.open { transform: translateY(0); }
+        .custom-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid white;
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .custom-marker:hover { transform: scale(1.2); }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900 font-sans antialiased select-none">
+
+    <div class="absolute top-0 left-0 right-0 z-50 p-3 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
+        <div class="flex items-center gap-2 overflow-x-auto pb-2 pointer-events-auto no-scrollbar">
+            <button onclick="filterCategory('Всі')" class="cat-btn px-4 py-2 bg-white text-gray-800 font-medium rounded-full shadow-md text-sm whitespace-nowrap border border-gray-200 active:scale-95 transition">🗺 Всі</button>
+            <button onclick="filterCategory('Обрані')" class="cat-btn px-4 py-2 bg-white text-gray-800 font-medium rounded-full shadow-md text-sm whitespace-nowrap border border-gray-200 active:scale-95 transition">❤️ Обрані</button>
+            <button onclick="filterCategory('Їжа')" class="cat-btn px-4 py-2 bg-white text-gray-800 font-medium rounded-full shadow-md text-sm whitespace-nowrap border border-gray-200 active:scale-95 transition">🟠 Їжа</button>
+            <button onclick="filterCategory('Б\'юті')" class="cat-btn px-4 py-2 bg-white text-gray-800 font-medium rounded-full shadow-md text-sm whitespace-nowrap border border-gray-200 active:scale-95 transition">🟣 Б'юті</button>
+            <button onclick="filterCategory('Авто')" class="cat-btn px-4 py-2 bg-white text-gray-800 font-medium rounded-full shadow-md text-sm whitespace-nowrap border border-gray-200 active:scale-95 transition">🔵 Авто</button>
+            <button onclick="filterCategory('Послуги')" class="cat-btn px-4 py-2 bg-white text-gray-800 font-medium rounded-full shadow-md text-sm whitespace-nowrap border border-gray-200 active:scale-95 transition">🟢 Послуги</button>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <button onclick="openGoogleForm()" class="absolute bottom-6 right-6 z-40 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition group">
+        <span class="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 ease-out whitespace-nowrap font-medium text-sm pr-0 group-hover:pr-2">Додати бізнес</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+    </button>
+
+    <div id="bottomSheet" class="bottom-sheet fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white dark:bg-zinc-900 rounded-t-3xl shadow-[-10px_0_30px_rgba(0,0,0,0.15)] p-5 border-t border-gray-200 dark:border-zinc-800">
+        <div class="w-12 h-1.5 bg-gray-300 dark:bg-zinc-700 rounded-full mx-auto mb-4 cursor-pointer" onclick="closeDetails()"></div>
+        
+        <div class="flex justify-between items-start">
+            <div>
+                <span id="bizCategory" class="text-xs font-semibold tracking-wider uppercase px-2.5 py-1 rounded-md bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">Категорія</span>
+                <h2 id="bizName" class="text-xl font-bold mt-2 text-gray-900 dark:text-white">Назва бізнесу</h2>
+            </div>
+            <button onclick="toggleFavorite()" id="favBtn" class="text-gray-400 hover:text-red-500 transition p-2 bg-gray-50 dark:bg-zinc-800 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 fill-current" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            </button>
+        </div>
+
+        <p id="bizDesc" class="text-sm text-gray-600 dark:text-zinc-400 mt-3 leading-relaxed">Опис</p>
+
+        <div class="grid grid-cols-2 gap-3 mt-5">
+            <a id="bizRoute" href="#" target="_blank" class="col-span-2 flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl text-sm shadow-md active:scale-95 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Прокласти маршрут
+            </a>
+            <a id="bizContact" href="#" target="_blank" class="flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl text-sm shadow-md active:scale-95 transition">
+                💬 Зв'язатися
+            </a>
+            <a id="bizSocial" href="#" target="_blank" class="flex items-center justify-center gap-2 py-3 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-800 dark:text-white font-medium rounded-xl text-sm active:scale-95 transition">
+                📸 Instagram
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram?.WebApp;
+        if (tg) { tg.expand(); tg.ready(); }
+
+        const mockData = [
+            { id: 1, name: "Кав'ярня 'Львів'", category: "Їжа", lat: 39.9864, lng: -0.0513, color: "#FF9800", desc: "Найкраща українська кава, свіжі круасани та традиційні сирники у самому центрі міста.", contact: "https://t.me/coffee_lviv_tg", social: "https://instagram.com" },
+            { id: 2, name: "Манікюр від Анни", category: "Б'юті", lat: 39.9850, lng: -0.0490, color: "#9C27B0", desc: "Професійний апаратний манікюр, педикюр, нарощування та художній дизайн нігтів.", contact: "https://t.me/anna_nails", social: "https://instagram.com" },
+            { id: 3, name: "СТО 'Козак'", category: "Авто", lat: 39.9900, lng: -0.0600, color: "#2196F3", desc: "Швидкий ремонт ходової, діагностика двигуна, заміна мастил та технічне обслуговування.", contact: "https://t.me/kozac_auto", social: "https://facebook.com" },
+            { id: 4, name: "Юрист Олена", category: "Послуги", lat: 39.9830, lng: -0.0550, color: "#4CAF50", desc: "Юридичний супровід для українців: оформлення TIE, прописка, контракти на оренду.", contact: "https://t.me/olena_law", social: "https://instagram.com" }
+        ];
+
+        let map;
+        let markersGroup;
+        let selectedBusinessId = null;
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([39.9864, -0.0513], 14);
+            markersGroup = L.layerGroup().addTo(map);
+            detectTheme();
+            renderMarkers(mockData);
+        }
+
+        function detectTheme() {
+            if (tg && tg.colorScheme === 'dark') {
+                document.documentElement.classList.add('dark');
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© OS' }).addTo(map);
+            } else {
+                document.documentElement.classList.remove('dark');
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© OS' }).addTo(map);
+            }
+        }
+
+        function renderMarkers(data) {
+            markersGroup.clearLayers();
+            data.forEach(biz => {
+                const customIcon = L.divIcon({
+                    html: `<div class="custom-marker" style="background-color: ${biz.color}; width: 24px; height: 24px;"><div class="w-2 h-2 bg-white rounded-full"></div></div>`,
+                    className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+                });
+                const marker = L.marker([biz.lat, biz.lng], { icon: customIcon });
+                marker.on('click', () => showDetails(biz));
+                markersGroup.addLayer(marker);
+            });
+        }
+
+        function showDetails(biz) {
+            selectedBusinessId = biz.id;
+            document.getElementById('bizName').innerText = biz.name;
+            document.getElementById('bizCategory').innerText = biz.category;
+            document.getElementById('bizDesc').innerText = biz.desc;
+            document.getElementById('bizContact').href = biz.contact;
+            document.getElementById('bizSocial').href = biz.social;
+            
+            // ЛОГІКА: Генерація посилання на Google Maps
+            document.getElementById('bizRoute').href = `https://www.google.com/maps/dir/?api=1&destination=${biz.lat},${biz.lng}`;
+
+            const favorites = JSON.parse(localStorage.getItem('fav_businesses') || '[]');
+            const favBtn = document.getElementById('favBtn');
+            if (favorites.includes(biz.id)) {
+                favBtn.classList.add('text-red-500'); favBtn.classList.remove('text-gray-400');
+            } else {
+                favBtn.classList.remove('text-red-500'); favBtn.classList.add('text-gray-400');
+            }
+
+            document.getElementById('bottomSheet').classList.add('open');
+        }
+
+        function closeDetails() {
+            document.getElementById('bottomSheet').classList.remove('open');
+            selectedBusinessId = null;
+        }
+
+        function toggleFavorite() {
+            if (!selectedBusinessId) return;
+            let favorites = JSON.parse(localStorage.getItem('fav_businesses') || '[]');
+            const favBtn = document.getElementById('favBtn');
+            if (favorites.includes(selectedBusinessId)) {
+                favorites = favorites.filter(id => id !== selectedBusinessId);
+                favBtn.classList.remove('text-red-500'); favBtn.classList.add('text-gray-400');
+            } else {
+                favorites.push(selectedBusinessId);
+                favBtn.classList.add('text-red-500'); favBtn.classList.remove('text-gray-400');
+            }
+            localStorage.setItem('fav_businesses', JSON.stringify(favorites));
+        }
+
+        function filterCategory(cat) {
+            closeDetails();
+            if (cat === 'Всі') { renderMarkers(mockData); } 
+            else if (cat === 'Обрані') {
+                const favorites = JSON.parse(localStorage.getItem('fav_businesses') || '[]');
+                renderMarkers(mockData.filter(biz => favorites.includes(biz.id)));
+            } else {
+                renderMarkers(mockData.filter(biz => biz.category === cat));
+            }
+        }
+
+        function openGoogleForm() {
+            const formUrl = "https://docs.google.com/forms/"; 
+            tg ? tg.openLink(formUrl) : window.open(formUrl, '_blank');
+        }
+
+        if (tg) tg.onEvent('themeChanged', detectTheme);
+        window.onload = initMap;
+    </script>
+</body>
+</html>
