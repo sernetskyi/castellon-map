@@ -28,6 +28,22 @@
             transition: transform 0.2s ease;
         }
         .custom-marker:hover { transform: scale(1.2); }
+        #loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 30px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .dark #loader { background: rgba(30, 30, 30, 0.95); color: white; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans antialiased select-none">
@@ -41,6 +57,14 @@
             <button onclick="filterCategory('Авто')" class="cat-btn px-4 py-2 bg-white text-gray-800 font-medium rounded-full shadow-md text-sm whitespace-nowrap border border-gray-200 active:scale-95 transition">🔵 Авто</button>
             <button onclick="filterCategory('Послуги')" class="cat-btn px-4 py-2 bg-white text-gray-800 font-medium rounded-full shadow-md text-sm whitespace-nowrap border border-gray-200 active:scale-95 transition">🟢 Послуги</button>
         </div>
+    </div>
+
+    <div id="loader">
+        <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Завантаження бази...
     </div>
 
     <div id="map"></div>
@@ -83,22 +107,18 @@
         const tg = window.Telegram?.WebApp;
         if (tg) { tg.expand(); tg.ready(); }
 
-        const mockData = [
-            { id: 1, name: "Кав'ярня 'Львів'", category: "Їжа", lat: 39.9864, lng: -0.0513, color: "#FF9800", desc: "Найкраща українська кава, свіжі круасани та традиційні сирники у самому центрі міста.", contact: "https://t.me/coffee_lviv_tg", social: "https://instagram.com" },
-            { id: 2, name: "Манікюр від Анни", category: "Б'юті", lat: 39.9850, lng: -0.0490, color: "#9C27B0", desc: "Професійний апаратний манікюр, педикюр, нарощування та художній дизайн нігтів.", contact: "https://t.me/anna_nails", social: "https://instagram.com" },
-            { id: 3, name: "СТО 'Козак'", category: "Авто", lat: 39.9900, lng: -0.0600, color: "#2196F3", desc: "Швидкий ремонт ходової, діагностика двигуна, заміна мастил та технічне обслуговування.", contact: "https://t.me/kozac_auto", social: "https://facebook.com" },
-            { id: 4, name: "Юрист Олена", category: "Послуги", lat: 39.9830, lng: -0.0550, color: "#4CAF50", desc: "Юридичний супровід для українців: оформлення TIE, прописка, контракти на оренду.", contact: "https://t.me/olena_law", social: "https://instagram.com" }
-        ];
-
+        const API_URL = "https://script.google.com/macros/s/AKfycbySZLWeM_l075WX_5geNO75WCBgr5r-2ib0yfQn_4GpSZX7YfJafeGaAIH4tKHxusWFsA/exec";
+        
         let map;
         let markersGroup;
         let selectedBusinessId = null;
+        let businessData = []; 
 
         function initMap() {
             map = L.map('map', { zoomControl: false }).setView([39.9864, -0.0513], 14);
             markersGroup = L.layerGroup().addTo(map);
             detectTheme();
-            renderMarkers(mockData);
+            fetchData(); 
         }
 
         function detectTheme() {
@@ -108,6 +128,31 @@
             } else {
                 document.documentElement.classList.remove('dark');
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© OS' }).addTo(map);
+            }
+        }
+
+        async function fetchData() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error("Помилка БД:", data.error);
+                    document.getElementById('loader').innerText = "Помилка завантаження даних";
+                    return;
+                }
+
+                businessData = data; 
+                renderMarkers(businessData);
+                
+                document.getElementById('loader').style.display = 'none';
+
+                if(businessData.length > 0) {
+                   map.setView([businessData[0].lat, businessData[0].lng], 14);
+                }
+            } catch (error) {
+                console.error("Помилка мережі:", error);
+                document.getElementById('loader').innerText = "Помилка з'єднання";
             }
         }
 
@@ -128,11 +173,25 @@
             selectedBusinessId = biz.id;
             document.getElementById('bizName').innerText = biz.name;
             document.getElementById('bizCategory').innerText = biz.category;
-            document.getElementById('bizDesc').innerText = biz.desc;
-            document.getElementById('bizContact').href = biz.contact;
-            document.getElementById('bizSocial').href = biz.social;
+            document.getElementById('bizDesc').innerText = biz.desc || "Опис відсутній.";
             
-            // ЛОГІКА: Генерація посилання на Google Maps
+            const contactBtn = document.getElementById('bizContact');
+            if(biz.contact) {
+                contactBtn.style.display = 'flex';
+                contactBtn.href = biz.contact;
+            } else {
+                contactBtn.style.display = 'none';
+            }
+
+            const socialBtn = document.getElementById('bizSocial');
+            if(biz.social) {
+                socialBtn.style.display = 'flex';
+                socialBtn.href = biz.social;
+            } else {
+                socialBtn.style.display = 'none';
+            }
+            
+            // Виправлений синтаксис Deep Link
             document.getElementById('bizRoute').href = `https://www.google.com/maps/dir/?api=1&destination=${biz.lat},${biz.lng}`;
 
             const favorites = JSON.parse(localStorage.getItem('fav_businesses') || '[]');
@@ -140,7 +199,7 @@
             if (favorites.includes(biz.id)) {
                 favBtn.classList.add('text-red-500'); favBtn.classList.remove('text-gray-400');
             } else {
-                favBtn.classList.remove('text-red-500'); favBtn.classList.add('text-gray-400');
+                favBtn.classList.remove('text-red-500'); favBtn.mathbfList.add('text-gray-400');
             }
 
             document.getElementById('bottomSheet').classList.add('open');
@@ -167,12 +226,14 @@
 
         function filterCategory(cat) {
             closeDetails();
-            if (cat === 'Всі') { renderMarkers(mockData); } 
+            if (cat === 'Всі') { 
+                renderMarkers(businessData); 
+            } 
             else if (cat === 'Обрані') {
                 const favorites = JSON.parse(localStorage.getItem('fav_businesses') || '[]');
-                renderMarkers(mockData.filter(biz => favorites.includes(biz.id)));
+                renderMarkers(businessData.filter(biz => favorites.includes(biz.id)));
             } else {
-                renderMarkers(mockData.filter(biz => biz.category === cat));
+                renderMarkers(businessData.filter(biz => biz.category === cat));
             }
         }
 
